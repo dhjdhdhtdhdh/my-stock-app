@@ -117,7 +117,6 @@ for sector_name, companies in SECTOR_MAP.items():
                 hide_index=True,
                 use_container_width=True
             )
-            )
         else:
             st.warning(f"{sector_name} 데이터를 불러올 수 없습니다.")
 
