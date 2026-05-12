@@ -41,7 +41,14 @@ def get_naver_quant():
         print(f"Error fetching Naver data: {e}")
         return None
     return None
-
+# 네이버 실패 시 카카오, 삼성전자 등 주요 대형주 실시간 정보로 대체 출력
+if quant_df is None:
+    st.info("💡 네이버 서버 응답 지연으로 주요 대형주 실시간 정보를 대신 표시합니다.")
+    major_tickers = {
+        "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "한미반도체": "042700.KS",
+        "LG엔솔": "373220.KS", "현대차": "005380.KS", "에코프로": "086520.KQ"
+    }
+    quant_df = fetch_data(major_tickers) # 기존에 만든 fetch_data 함수 재활용
 # 3. 레이아웃: 제목 및 시장 정보 (에러 발생 지점 수정)
 col_title, col_info = st.columns([2, 1])
 with col_title:
