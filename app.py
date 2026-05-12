@@ -10,25 +10,35 @@ st.set_page_config(page_title="오씨의 주식 공부", layout="wide")
 # 2. 실시간 네이버 데이터 수집 함수 (보안 강화)
 @st.cache_data(ttl=60)
 def get_naver_quant():
+    # 네이버 금융 거래량 상위 페이지
     url = "https://finance.naver.com/sise/sise_quant.naver"
-    # 최신 크롬 브라우저 헤더로 업데이트
+    
+    # 세션을 사용하여 연결 유지 및 브라우저 위장 강화
+    session = requests.Session()
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
         'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
         'Referer': 'https://finance.naver.com/'
     }
+    
     try:
-        response = requests.get(url, headers=headers, timeout=10)
-        # BeautifulSoup을 거치지 않고 직접 pandas로 읽되, lxml 엔진 명시
+        response = session.get(url, headers=headers, timeout=15)
+        # 만약 lxml에서 에러가 난다면 'html5lib'으로 엔진 변경 시도
         df_list = pd.read_html(response.text, encoding='euc-kr', flavor='lxml')
+        
         for df in df_list:
+            # 거래량 상위 테이블은 보통 컬럼 수가 많고 '종목명'이 포함됨
             if '종목명' in df.columns and len(df) > 50:
-                df = df.dropna(subset=['종목명'])
-                # '현재가', '거래량' 등 숫자 데이터에서 불필요한 콤마 제거 및 정수화
-                res_df = df[['종목명', '현재가', '등락률', '거래량']].head(10).reset_index(drop=True)
+                # 불필요한 빈 행 제거 및 상위 10개 추출
+                df = df.dropna(subset=['종목명']).reset_index(drop=True)
+                res_df = df[['종목명', '현재가', '등락률', '거래량']].head(10)
+                # 등락률 텍스트 정리 (상한/하한 등의 글자 제거)
+                res_df['등락률'] = res_df['등락률'].astype(str).str.replace('상한', '').str.replace('하한', '').str.strip()
                 return res_df
     except Exception as e:
-        # 에러 발생 시 로그를 남기지 않고 None 반환 (사용자에게는 warning 표시)
+        # 에러 로그 출력 (디버깅용)
+        print(f"Error fetching Naver data: {e}")
         return None
     return None
 
