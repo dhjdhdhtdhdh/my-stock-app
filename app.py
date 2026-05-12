@@ -11,19 +11,24 @@ st.set_page_config(page_title="오씨의 주식 공부", layout="wide")
 @st.cache_data(ttl=60)
 def get_naver_quant():
     url = "https://finance.naver.com/sise/sise_quant.naver"
+    # 최신 크롬 브라우저 헤더로 업데이트
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
         'Referer': 'https://finance.naver.com/'
     }
     try:
         response = requests.get(url, headers=headers, timeout=10)
+        # BeautifulSoup을 거치지 않고 직접 pandas로 읽되, lxml 엔진 명시
         df_list = pd.read_html(response.text, encoding='euc-kr', flavor='lxml')
         for df in df_list:
             if '종목명' in df.columns and len(df) > 50:
                 df = df.dropna(subset=['종목명'])
+                # '현재가', '거래량' 등 숫자 데이터에서 불필요한 콤마 제거 및 정수화
                 res_df = df[['종목명', '현재가', '등락률', '거래량']].head(10).reset_index(drop=True)
                 return res_df
-    except:
+    except Exception as e:
+        # 에러 발생 시 로그를 남기지 않고 None 반환 (사용자에게는 warning 표시)
         return None
     return None
 
