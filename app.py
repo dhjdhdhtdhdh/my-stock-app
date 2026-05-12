@@ -104,12 +104,13 @@ for sector_name, companies in SECTOR_MAP.items():
             display_df = df[['기업명', '1M 차트', '현재가_표시', '거래량_표시', '1일 전', '1주 전', '1개월 전']]
             
             # 🔥 색상 적용 (1일, 1주, 1개월 전 컬럼 대상)
-            styled_df = display_df.style.applymap(color_returns, subset=['1일 전', '1주 전', '1개월 전']) \
-                                       .format({
-                                           '1일 전': '{:+.2f}%',
-                                           '1주 전': '{:+.2f}%',
-                                           '1개월 전': '{:+.2f}%'
-                                       })
+            # applymap 대신 map을 사용합니다.
+                styled_df = display_df.style.map(color_returns, subset=['1일 전', '1주 전', '1개월 전']) \
+                                 .format({
+                                   '1일 전': '{:+.2f}%',
+                                   '1주 전': '{:+.2f}%',
+                                   '1개월 전': '{:+.2f}%'
+                               })
 
             st.dataframe(
                 styled_df,
