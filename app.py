@@ -1,52 +1,40 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import requests
 from datetime import datetime
 
 # 1. 페이지 설정
-st.set_page_config(page_title="오씨의 주식 공부", layout="wide")
+st.set_page_config(page_title="오씨의 주식 공부 - 마스터 대시보드", layout="wide")
 
-# 2. 실시간 네이버 데이터 수집 함수 (보안 강화)
-@st.cache_data(ttl=60)
-def get_naver_quant():
-    url = "https://finance.naver.com/sise/sise_quant.naver"
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-        'Referer': 'https://finance.naver.com/'
-    }
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        df_list = pd.read_html(response.text, encoding='euc-kr', flavor='lxml')
-        for df in df_list:
-            if '종목명' in df.columns and len(df) > 50:
-                df = df.dropna(subset=['종목명'])
-                res_df = df[['종목명', '현재가', '등락률', '거래량']].head(10).reset_index(drop=True)
-                return res_df
-    except:
-        return None
-    return None
+# 2. 상단 레이아웃: 제목 및 시장 지수(Index)
+st.title("오씨의 주식 공부 📈")
 
-# 3. 레이아웃: 제목 및 시장 정보 (에러 발생 지점 수정)
-col_title, col_info = st.columns([2, 1])
-with col_title:
-    st.title("오씨의 주식 공부 📈")
-    st.caption("글로벌 테크·반도체·AI·에너지 - 초광역 섹터 모멘텀 감시")
+# 주요 지수 정보 가져오기
+@st.cache_data(ttl=600)
+def get_market_indices():
+    indices = {"KOSPI": "^KS11", "KOSDAQ": "^KQ11", "S&P 500": "^GSPC", "나스닥": "^IXIC", "필라델피아 반도체": "^SOX"}
+    idx_data = []
+    for name, ticker in indices.items():
+        try:
+            t = yf.Ticker(ticker)
+            hist = t.history(period="2d")
+            curr = hist['Close'].iloc[-1]
+            prev = hist['Close'].iloc[-2]
+            change = ((curr - prev) / prev) * 100
+            idx_data.append({"지수명": name, "현재가": f"{curr:,.2f}", "등락률": change})
+        except: continue
+    return idx_data
 
-with col_info:
-    st.info(f"🇰🇷 K-Market: 09:00 - 15:30 | 🇺🇸 U.S. Market: 22:30 - 05:00")
+idx_list = get_market_indices()
+if idx_list:
+    cols = st.columns(len(idx_list))
+    for i, idx in enumerate(idx_list):
+        with cols[i]:
+            st.metric(label=idx['지수명'], value=idx['현재가'], delta=f"{idx['등락률']:.2f}%")
 
-# 4. 실시간 거래량 TOP 10 출력
-st.markdown("### 🔥 K-Market 실시간 거래량 TOP 10")
-with st.spinner("실시간 데이터를 가져오는 중..."):
-    quant_df = get_naver_quant()
+st.divider()
 
-if quant_df is not None:
-    st.dataframe(quant_df, use_container_width=True, hide_index=True)
-else:
-    st.warning("실시간 랭킹 데이터를 일시적으로 불러올 수 없습니다. GitHub의 requirements.txt를 확인해 주세요.")
-
-# 5. 초광역 섹터 맵 구성 (섹터별 10개)
+# 3. 초광역 섹터 맵 (섹터별 10개 종목 고정)
 MONITOR_MAP = {
     "💾 반도체 및 소부장 (K-Stock)": {
         "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "한미반도체": "042700.KS", 
@@ -68,10 +56,10 @@ MONITOR_MAP = {
         "한화에어로": "012450.KS", "LIG넥스원": "079550.KS", "한국항공우주": "047810.KS",
         "현대로템": "064350.KS", "IONQ": "IONQ", "Joby": "JOBY", "LUNR": "LUNR"
     },
-    "🪙 가상자산 & 핀테크": {
-        "비트코인(BTC)": "BTC-USD", "이더리움(ETH)": "ETH-USD", "코인베이스": "COIN",
-        "마이크로스트래티지": "MSTR", "우리기술투자": "041190.KQ", "한화투자증권": "003530.KS",
-        "Block": "SQ", "PayPal": "PYPL", "Robinhood": "HOOD", "갤럭시디지털": "GLXY.TO"
+    "💊 바이오 & 헬스케어": {
+        "삼성바이오": "207940.KS", "셀트리온": "068270.KS", "알테오젠": "196170.KQ",
+        "HLB": "028300.KQ", "유한양행": "000100.KS", "한미약품": "128940.KS", 
+        "SK바이오팜": "326030.KS", "Eli Lilly": "LLY", "Novo Nordisk": "NVO", "Vertex": "VRTX"
     },
     "📈 주요 지수 ETF": {
         "KODEX 레버리지": "122630.KS", "KODEX 인버스": "114800.KS", "KODEX 200": "069500.KS",
@@ -79,45 +67,69 @@ MONITOR_MAP = {
     }
 }
 
-# 6. 데이터 수집 및 스타일 함수
+# 4. 데이터 수집 및 가치 분석 함수
 def color_returns(val):
     color = '#e63946' if val > 0 else '#1d3557' if val < 0 else '#333'
     return f'color: {color}; font-weight: bold'
 
 @st.cache_data(ttl=300)
-def fetch_data(companies):
-    data_list = []
-    for name, ticker in companies.items():
-        try:
-            t = yf.Ticker(ticker)
-            hist = t.history(period="2mo")
-            if hist.empty: continue
-            curr = hist['Close'].iloc[-1]
-            vol = hist['Volume'].iloc[-1]
-            p_1d, p_1w, p_1m = hist['Close'].iloc[-2], hist['Close'].iloc[-6], hist['Close'].iloc[-21]
-            data_list.append({
-                "명칭": name, "1M 차트": hist['Close'].tail(20).tolist(),
-                "현재가": curr, "거래량": vol,
-                "1일 전": ((curr - p_1d) / p_1d) * 100, 
-                "1주 전": ((curr - p_1w) / p_1w) * 100,
-                "1개월 전": ((curr - p_1m) / p_1m) * 100, "ticker": ticker
-            })
-        except: continue
-    return data_list
+def fetch_all_data(sector_map):
+    all_data = []
+    for section, stocks in sector_map.items():
+        for name, ticker in stocks.items():
+            try:
+                t = yf.Ticker(ticker)
+                hist = t.history(period="2mo")
+                if hist.empty: continue
+                
+                info = t.info
+                curr = hist['Close'].iloc[-1]
+                prev = hist['Close'].iloc[-2]
+                
+                all_data.append({
+                    "섹터": section,
+                    "명칭": name,
+                    "1M 차트": hist['Close'].tail(20).tolist(),
+                    "현재가": curr,
+                    "거래량": hist['Volume'].iloc[-1],
+                    "1일 전": ((curr - prev) / prev) * 100,
+                    "1주 전": ((curr - hist['Close'].iloc[-6]) / hist['Close'].iloc[-6]) * 100,
+                    "1개월 전": ((curr - hist['Close'].iloc[-21]) / hist['Close'].iloc[-21]) * 100,
+                    "PER": info.get('trailingPE', 0),
+                    "PBR": info.get('priceToBook', 0),
+                    "ROE": info.get('returnOnEquity', 0) * 100,
+                    "ticker": ticker
+                })
+            except: continue
+    return pd.DataFrame(all_data)
 
-# 7. 섹터별 대시보드 출력
-for section, stocks in MONITOR_MAP.items():
-    st.markdown(f"### {section}")
-    raw_data = fetch_data(stocks)
-    if raw_data:
-        df = pd.DataFrame(raw_data)
-        df['거래량_표시'] = df['거래량'].apply(lambda x: f"{x/1e6:.1f}M" if x >= 1e6 else f"{x/1e3:.0f}K")
-        df['현재가_표시'] = df.apply(lambda x: f"₩{x['현재가']:,.0f}" if any(ext in x['ticker'] for ext in [".KS", ".KQ"]) else f"${x['현재가']:,.2f}", axis=1)
-        
-        display_df = df[['명칭', '1M 차트', '현재가_표시', '거래량_표시', '1일 전', '1주 전', '1개월 전']]
-        styled_df = display_df.style.map(color_returns, subset=['1일 전', '1주 전', '1개월 전']).format({'1일 전': '{:+.2f}%', '1주 전': '{:+.2f}%', '1개월 전': '{:+.2f}%'})
-        
-        st.dataframe(styled_df, column_config={"1M 차트": st.column_config.LineChartColumn("최근 흐름", width="small")}, hide_index=True, use_container_width=True)
+# 5. 데이터 처리 및 출력
+with st.spinner("전 섹터 데이터 동기화 중..."):
+    full_df = fetch_all_data(MONITOR_MAP)
+
+if not full_df.empty:
+    # 5-1. 내부 데이터 기반 실시간 거래량 TOP 10 (가치 지표 포함)
+    st.markdown("### 🔥 감시 종목 내 실시간 거래량 TOP 10")
+    top_10 = full_df.sort_values(by='거래량', ascending=False).head(10).copy()
+    top_10['현재가_표시'] = top_10.apply(lambda x: f"₩{x['현재가']:,.0f}" if any(ext in x['ticker'] for ext in [".KS", ".KQ"]) else f"${x['현재가']:,.2f}", axis=1)
+    
+    st.dataframe(
+        top_10[['명칭', '현재가_표시', '1일 전', 'PER', 'PBR', 'ROE']].style.map(color_returns, subset=['1일 전']),
+        hide_index=True, use_container_width=True
+    )
+
+    # 5-2. 초광역 섹터 맵 (섹터별 10개 고정 출력)
+    for section in MONITOR_MAP.keys():
+        st.markdown(f"### {section}")
+        sector_df = full_df[full_df['섹터'] == section].copy()
+        if not sector_df.empty:
+            sector_df['거래량_표시'] = sector_df['거래량'].apply(lambda x: f"{x/1e6:.1f}M" if x >= 1e6 else f"{x/1e3:.0f}K")
+            sector_df['현재가_표시'] = sector_df.apply(lambda x: f"₩{x['현재가']:,.0f}" if any(ext in x['ticker'] for ext in [".KS", ".KQ"]) else f"${x['현재가']:,.2f}", axis=1)
+            
+            display_df = sector_df[['명칭', '1M 차트', '현재가_표시', '거래량_표시', '1일 전', '1주 전', '1개월 전']]
+            styled_df = display_df.style.map(color_returns, subset=['1일 전', '1주 전', '1개월 전']).format({'1일 전': '{:+.2f}%', '1주 전': '{:+.2f}%', '1개월 전': '{:+.2f}%'})
+            
+            st.dataframe(styled_df, column_config={"1M 차트": st.column_config.LineChartColumn("최근 흐름", width="small")}, hide_index=True, use_container_width=True)
 
 st.divider()
-st.caption(f"최종 업데이트: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 오씨의 주식 공부")
+st.caption(f"최종 업데이트: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 오씨의 주식 공부 (Index & 가치지표 통합본)")
