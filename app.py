@@ -4,23 +4,30 @@ import pandas as pd
 from datetime import datetime
 
 # 1. 페이지 설정
-st.set_page_config(page_title="오씨의 주식 공부 - 전문가 분석형", layout="wide")
+st.set_page_config(page_title="오씨의 주식 공부 - 완결본", layout="wide")
 
-# 2. 상단 지수(Index) 정보
-st.title("오씨의 주식 공부 📈")
+# 2. 상단 시장 지수(Index) 섹션
 @st.cache_data(ttl=600)
 def get_market_indices():
-    indices = {"KOSPI": "^KS11", "KOSDAQ": "^KQ11", "S&P 500": "^GSPC", "나스닥": "^IXIC", "필라델피아 반도체": "^SOX"}
+    indices = {
+        "KOSPI": "^KS11", 
+        "KOSDAQ": "^KQ11", 
+        "S&P 500": "^GSPC", 
+        "나스닥": "^IXIC", 
+        "필라델피아 반도체": "^SOX"
+    }
     idx_data = []
     for name, ticker in indices.items():
         try:
             t = yf.Ticker(ticker)
             hist = t.history(period="2d")
+            if len(hist) < 2: continue
             curr, prev = hist['Close'].iloc[-1], hist['Close'].iloc[-2]
             idx_data.append({"지수명": name, "현재가": f"{curr:,.2f}", "등락률": ((curr - prev) / prev) * 100})
         except: continue
     return idx_data
 
+st.title("오씨의 주식 공부 📈")
 idx_list = get_market_indices()
 if idx_list:
     cols = st.columns(len(idx_list))
@@ -30,7 +37,23 @@ if idx_list:
 
 st.divider()
 
-# 3. 초광역 섹터 맵 구성
+# 3. 분석 Remark 생성 로직 (오승진 님 기준 반영)
+def get_remark(per, pbr, roe):
+    reasons = []
+    # PER: 10~15배 이하 저평가, 30배 이상 성장주
+    if 0 < per <= 15: reasons.append("저PER(저평가)")
+    elif per >= 30: reasons.append("성장주(고PER)")
+    
+    # PBR: 1배 미만 자산가치 우수
+    if 0 < pbr <= 1: reasons.append("자산가치 우수")
+    
+    # ROE: 10% 이상 우량 기업
+    if roe >= 10: reasons.append("수익성(ROE) 우량")
+    elif roe < 0: reasons.append("적자 주의")
+    
+    return " / ".join(reasons) if reasons else "모멘텀 관찰"
+
+# 4. 초광역 섹터 맵 데이터 수집 (섹터별 10개)
 MONITOR_MAP = {
     "💾 반도체 및 소부장 (K-Stock)": {
         "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "한미반도체": "042700.KS", 
@@ -68,19 +91,6 @@ MONITOR_MAP = {
     }
 }
 
-# 4. 데이터 분석 및 Remark 생성 함수
-def get_remark(per, pbr, roe):
-    reasons = []
-    if 0 < per <= 15: reasons.append("저PER(이익대비 저평가)")
-    elif per >= 30: reasons.append("고PER(성장성 기대)")
-    
-    if 0 < pbr <= 1: reasons.append("자산가치 우수")
-    
-    if roe >= 10: reasons.append("수익성(ROE) 우량")
-    elif roe < 0: reasons.append("적자 주의")
-    
-    return " / ".join(reasons) if reasons else "지표 모니터링 중"
-
 @st.cache_data(ttl=300)
 def fetch_sector_data(stocks):
     data_list = []
@@ -92,7 +102,11 @@ def fetch_sector_data(stocks):
             
             info = t.info
             curr, prev = hist['Close'].iloc[-1], hist['Close'].iloc[-2]
-            per, pbr, roe = info.get('trailingPE', 0), info.get('priceToBook', 0), info.get('returnOnEquity', 0) * 100
+            
+            # 지표 추출 (여러 필드 시도로 누락 방지)
+            per = info.get('trailingPE') or info.get('forwardPE') or 0
+            pbr = info.get('priceToBook') or 0
+            roe = (info.get('returnOnEquity') or 0) * 100
             
             data_list.append({
                 "명칭": name, "1M 차트": hist['Close'].tail(20).tolist(),
@@ -100,9 +114,9 @@ def fetch_sector_data(stocks):
                 "1일 전": ((curr - prev) / prev) * 100,
                 "1주 전": ((curr - hist['Close'].iloc[-6]) / hist['Close'].iloc[-6]) * 100,
                 "1개월 전": ((curr - hist['Close'].iloc[-21]) / hist['Close'].iloc[-21]) * 100,
-                "PER": round(per, 1) if per else 0,
-                "PBR": round(pbr, 1) if pbr else 0,
-                "ROE": round(roe, 1) if roe else 0,
+                "PER": round(per, 1) if per > 0 else "-",
+                "PBR": round(pbr, 1) if pbr > 0 else "-",
+                "ROE": round(roe, 1) if roe != 0 else "-",
                 "Remark": get_remark(per, pbr, roe),
                 "ticker": ticker
             })
@@ -110,22 +124,34 @@ def fetch_sector_data(stocks):
     return data_list
 
 def color_returns(val):
-    color = '#e63946' if val > 0 else '#1d3557' if val < 0 else '#333'
-    return f'color: {color}; font-weight: bold'
+    if isinstance(val, (int, float)):
+        color = '#e63946' if val > 0 else '#1d3557' if val < 0 else '#333'
+        return f'color: {color}; font-weight: bold'
+    return ''
 
-# 5. 섹터별 대시보드 출력
+# 5. 메인 화면 출력
 for section, stocks in MONITOR_MAP.items():
     st.markdown(f"### {section}")
     raw_data = fetch_sector_data(stocks)
     if raw_data:
         df = pd.DataFrame(raw_data)
+        # 포맷팅
         df['거래량_표시'] = df['거래량'].apply(lambda x: f"{x/1e6:.1f}M" if x >= 1e6 else f"{x/1e3:.0f}K")
         df['현재가_표시'] = df.apply(lambda x: f"₩{x['현재가']:,.0f}" if any(ext in x['ticker'] for ext in [".KS", ".KQ"]) else f"${x['현재가']:,.2f}", axis=1)
         
         display_df = df[['명칭', '1M 차트', '현재가_표시', '거래량_표시', '1일 전', '1주 전', '1개월 전', 'PER', 'PBR', 'ROE', 'Remark']]
-        styled_df = display_df.style.map(color_returns, subset=['1일 전', '1주 전', '1개월 전']).format({'1일 전': '{:+.2f}%', '1주 전': '{:+.2f}%', '1개월 전': '{:+.2f}%'})
         
-        st.dataframe(styled_df, column_config={"1M 차트": st.column_config.LineChartColumn("최근 흐름", width="small")}, hide_index=True, use_container_width=True)
+        # 스타일링 적용
+        styled_df = display_df.style.map(color_returns, subset=['1일 전', '1주 전', '1개월 전']).format({
+            '1일 전': '{:+.2f}%', '1주 전': '{:+.2f}%', '1개월 전': '{:+.2f}%'
+        })
+        
+        st.dataframe(
+            styled_df, 
+            column_config={"1M 차트": st.column_config.LineChartColumn("최근 흐름", width="small")}, 
+            hide_index=True, 
+            use_container_width=True
+        )
 
 st.divider()
-st.caption(f"최종 업데이트: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 가치 지표 기준: PER 15↓, PBR 1↓, ROE 10%↑")
+st.caption(f"최종 업데이트: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 가치 기준: PER 15↓, PBR 1↓, ROE 10%↑")
