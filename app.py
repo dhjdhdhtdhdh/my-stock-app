@@ -98,24 +98,25 @@ for sector_name, companies in SECTOR_MAP.items():
             
             # 포맷팅 준비
             df['거래량_표시'] = df['거래량'].apply(lambda x: f"{x/1e6:.1f}M" if x >= 1e6 else f"{x/1e3:.0f}K")
-            df['현재가_표시'] = df.apply(lambda x: f"{x['현재가']:,.0f}" if ".KS" in x['ticker'] or ".KQ" in x['ticker'] else f"{x['현재가']:,.2f}", axis=1)
+            df['현재가_표시'] = df.apply(lambda x: f"₩{x['현재가']:,.0f}" if ".KS" in x['ticker'] or ".KQ" in x['ticker'] else f"${x['현재가']:,.2f}", axis=1)
 
-            # 필요한 컬럼만 추출 및 이름 변경
+            # 표시용 데이터프레임 구성
             display_df = df[['기업명', '1M 차트', '현재가_표시', '거래량_표시', '1일 전', '1주 전', '1개월 전']]
             
-            # 🔥 색상 적용 (1일, 1주, 1개월 전 컬럼 대상)
-            # applymap 대신 map을 사용합니다.
-styled_df = display_df.style.map(color_returns, subset=['1일 전', '1주 전', '1개월 전']).format({'1일 전': '{:+.2f}%', '1주 전': '{:+.2f}%', '1개월 전': '{:+.2f}%'})
+            # 색상 및 숫자 포맷 적용 (Pandas 2.1.0+ 버전 대응)
+            styled_df = display_df.style.map(color_returns, subset=['1일 전', '1주 전', '1개월 전']).format({'1일 전': '{:+.2f}%', '1주 전': '{:+.2f}%', '1개월 전': '{:+.2f}%'})
 
-        st.dataframe(
+            # 데이터프레임 출력 (이 부분의 들여쓰기가 styled_df와 같아야 합니다)
+            st.dataframe(
                 styled_df,
                 column_config={
-                    "1M 차트": st.column_config.LineChartColumn("1M 차트", width="small"),
+                    "1M 차트": st.column_config.LineChartColumn("최근 흐름", width="small"),
                     "현재가_표시": "현재가",
                     "거래량_표시": "거래량"
                 },
                 hide_index=True,
                 use_container_width=True
+            )
             )
         else:
             st.warning(f"{sector_name} 데이터를 불러올 수 없습니다.")
