@@ -107,7 +107,7 @@ for sector_name, companies in SECTOR_MAP.items():
             # applymap 대신 map을 사용합니다.
 styled_df = display_df.style.map(color_returns, subset=['1일 전', '1주 전', '1개월 전']).format({'1일 전': '{:+.2f}%', '1주 전': '{:+.2f}%', '1개월 전': '{:+.2f}%'})
 
-            st.dataframe(
+        st.dataframe(
                 styled_df,
                 column_config={
                     "1M 차트": st.column_config.LineChartColumn("1M 차트", width="small"),
