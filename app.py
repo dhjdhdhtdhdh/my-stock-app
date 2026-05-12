@@ -5,44 +5,62 @@ import requests
 from datetime import datetime
 
 # 1. 페이지 설정
-st.set_page_config(page_title="오씨의 주식 공부", layout="wide")
+st.set_page_config(page_title="오씨의 주식 공부 - 초광역 대시보드", layout="wide")
 
-# 2. 상단 헤더 및 시장 정보
+# 2. 상단 헤더
 col_title, col_info = st.columns([2, 1])
 with col_title:
-    st.title("오씨의 주식 공부 📊")
-    st.caption("초광역 섹터 모니터링 - 거래량 및 모멘텀 분석")
+    st.title("오씨의 주식 공부 📈")
+    st.caption("글로벌 테크·반도체·AI·에너지 - 초광역 섹터 모멘텀 감시")
 
 with col_info:
-    st.info(f"""
-    🇰🇷 **K-Market:** 09:00 - 15:30 | 🇺🇸 **U.S. Market:** 22:30 - 05:00
-    """)
+    st.info(f"🇰🇷 K-Market: 09:00 - 15:30 | 🇺🇸 U.S. Market: 22:30 - 05:00")
 
-# 3. 섹터 구성 (이전 섹터 리스트 유지)
+# 3. 초광역 섹터 맵 (섹터별 10개 종목 구성)
 MONITOR_MAP = {
-    "💾 반도체 & 소부장": {
+    "💾 반도체 및 소부장 (K-Stock)": {
         "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "한미반도체": "042700.KS", 
-        "리노공업": "058470.KQ", "HPSP": "403870.KQ", "가온칩스": "399720.KQ", "NVDA": "NVDA", "TSMC": "TSM"
+        "리노공업": "058470.KQ", "HPSP": "403870.KQ", "가온칩스": "399720.KQ", 
+        "이오테크닉스": "039030.KQ", "제주반도체": "080220.KQ", "주성엔지니어링": "036930.KQ", "원익IPS": "240810.KQ"
     },
-    "🔋 2차전지 & 리튬": {
-        "LG엔솔": "373220.KS", "에코프로": "086520.KQ", "포스코홀딩스": "005490.KS", 
-        "에코프로비엠": "247540.KQ", "엘앤에프": "066970.KQ", "테슬라": "TSLA", "리튬아메리카스": "LAC"
+    "🌐 글로벌 Tech & AI (U.S. Stock)": {
+        "NVIDIA": "NVDA", "Apple": "AAPL", "Microsoft": "MSFT", "Alphabet(Google)": "GOOGL",
+        "Amazon": "AMZN", "Meta": "META", "Tesla": "TSLA", "Broadcom": "AVGO", 
+        "AMD": "AMD", "Palantir": "PLTR"
     },
-    "🦾 로봇 & AI & 우주": {
-        "레인보우로보틱스": "272210.KQ", "두산로보틱스": "454910.KS", "마이크로소프트": "MSFT",
-        "팔란티어": "PLTR", "한화에어로스페이스": "012450.KS", "IONQ": "IONQ"
+    "🔋 2차전지 & 소재": {
+        "LG에너지솔루션": "373220.KS", "에코프로": "086520.KQ", "에코프로비엠": "247540.KQ",
+        "포스코홀딩스": "005490.KS", "포스코퓨처엠": "003670.KS", "엘앤에프": "066970.KQ", 
+        "삼성SDI": "006400.KS", "금양": "001570.KS", "엔켐": "348370.KQ", "나노신소재": "121600.KQ"
+    },
+    "🤖 AI·로봇·우주항공": {
+        "레인보우로보틱스": "272210.KQ", "두산로보틱스": "454910.KS", "뉴로메카": "348340.KQ",
+        "한화에어로스페이스": "012450.KS", "LIG넥스원": "079550.KS", "한국항공우주": "047810.KS",
+        "현대로템": "064350.KS", "IONQ": "IONQ", "Joby Aviation": "JOBY", "Intuitive Machines": "LUNR"
+    },
+    "💊 바이오 & 헬스케어": {
+        "삼성바이오로직스": "207940.KS", "셀트리온": "068270.KS", "알테오젠": "196170.KQ",
+        "HLB": "028300.KQ", "유한양행": "000100.KS", "한미약품": "128940.KS", 
+        "SK바이오팜": "326030.KS", "Eli Lilly": "LLY", "Novo Nordisk": "NVO", "Vertex": "VRTX"
+    },
+    "☀️ 에너지 & 원자재 & 인프라": {
+        "한화솔루션": "009830.KS", "씨에스윈드": "112610.KS", "두산에너빌리티": "034020.KS",
+        "HD현대중공업": "329180.KS", "금(Gold)": "GC=F", "구리": "HG=F", 
+        "천연가스": "NG=F", "WTI유": "CL=F", "리튬아메리카스": "LAC", "Freeport-McMoRan": "FCX"
     },
     "🪙 가상자산 & 핀테크": {
-        "비트코인(BTC)": "BTC-USD", "코인베이스": "COIN", "마이크로스트래티지": "MSTR",
-        "우리기술투자": "041190.KQ", "한화투자증권": "003530.KS"
+        "비트코인(BTC)": "BTC-USD", "이더리움(ETH)": "ETH-USD", "코인베이스": "COIN",
+        "마이크로스트래티지": "MSTR", "우리기술투자": "041190.KQ", "한화투자증권": "003530.KS",
+        "Block(Square)": "SQ", "PayPal": "PYPL", "Robinhood": "HOOD", "갤럭시디지털": "GLXY.TO"
     },
-    "📈 주요 ETF & 지수": {
-        "KODEX 레버리지": "122630.KS", "KODEX 인버스": "114800.KS", "TQQQ": "TQQQ", 
-        "SOXL": "SOXL", "SCHD": "SCHD"
+    "📈 주요 지수 ETF (Market)": {
+        "KODEX 레버리지": "122630.KS", "KODEX 인버스": "114800.KS", "KODEX 200": "069500.KS",
+        "TQQQ": "TQQQ", "SQQQ": "SQQQ", "SOXL": "SOXL", 
+        "SOXS": "SOXS", "SCHD": "SCHD", "JEPI": "JEPI", "TSLY": "TSLY"
     }
 }
 
-# 4. 데이터 수집 및 색상 함수
+# 4. 데이터 처리 로직
 @st.cache_data(ttl=300)
 def fetch_data(companies):
     data_list = []
@@ -87,36 +105,20 @@ quant_df = get_naver_quant()
 if quant_df is not None:
     st.table(quant_df)
 else:
-    st.warning("실시간 랭킹 데이터를 불러올 수 없습니다. 잠시 후 새로고침 하세요.")
+    st.warning("실시간 랭킹 데이터를 일시적으로 불러올 수 없습니다.")
 
 for section, stocks in MONITOR_MAP.items():
     st.markdown(f"### {section}")
     raw_data = fetch_data(stocks)
     if raw_data:
         df = pd.DataFrame(raw_data)
-        
-        # 포맷팅: 거래량 추가
         df['거래량_표시'] = df['거래량'].apply(lambda x: f"{x/1e6:.1f}M" if x >= 1e6 else f"{x/1e3:.0f}K")
         df['현재가_표시'] = df.apply(lambda x: f"₩{x['현재가']:,.0f}" if any(ext in x['ticker'] for ext in [".KS", ".KQ"]) else f"${x['현재가']:,.2f}", axis=1)
         
-        # 표시용 DF 구성
         display_df = df[['명칭', '1M 차트', '현재가_표시', '거래량_표시', '1일 전', '1주 전', '1개월 전']]
+        styled_df = display_df.style.map(color_returns, subset=['1일 전', '1주 전', '1개월 전']).format({'1일 전': '{:+.2f}%', '1주 전': '{:+.2f}%', '1개월 전': '{:+.2f}%'})
         
-        # 스타일링
-        styled_df = display_df.style.map(color_returns, subset=['1일 전', '1주 전', '1개월 전']).format({
-            '1일 전': '{:+.2f}%', '1주 전': '{:+.2f}%', '1개월 전': '{:+.2f}%'
-        })
-        
-        st.dataframe(
-            styled_df, 
-            column_config={
-                "1M 차트": st.column_config.LineChartColumn("최근 흐름", width="small"),
-                "현재가_표시": "현재가",
-                "거래량_표시": "거래량"
-            }, 
-            hide_index=True, 
-            use_container_width=True
-        )
+        st.dataframe(styled_df, column_config={"1M 차트": st.column_config.LineChartColumn("최근 흐름", width="small")}, hide_index=True, use_container_width=True)
 
 st.divider()
 st.caption(f"최종 업데이트: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 오씨의 주식 공부")
