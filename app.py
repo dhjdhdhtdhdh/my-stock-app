@@ -5,16 +5,56 @@ import requests
 from datetime import datetime
 
 # 1. 페이지 설정
-st.set_page_config(page_title="오씨의 주식 공부 - 초광역 대시보드", layout="wide")
+st.set_page_config(page_title="오씨의 주식 공부", layout="wide")
 
-# 2. 상단 헤더
-col_title, col_info = st.columns([2, 1])
-with col_title:
-    st.title("오씨의 주식 공부 📈")
-    st.caption("글로벌 테크·반도체·AI·에너지 - 초광역 섹터 모멘텀 감시")
+# 2. 실시간 네이버 데이터 수집 함수 (강화 버전)
+@st.cache_data(ttl=60)
+def get_naver_quant():
+    url = "https://finance.naver.com/sise/sise_quant.naver"
+    # 브라우저인 것처럼 속이는 헤더 (보안 우회)
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+        'Referer': 'https://finance.naver.com/'
+    }
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        # lxml 엔진을 사용하여 모든 테이블을 읽어옴
+        df_list = pd.read_html(response.text, encoding='euc-kr', flavor='lxml')
+        
+        for df in df_list:
+            # '종목명' 컬럼이 있고 데이터가 충분한 테이블 찾기
+            if '종목명' in df.columns and len(df) > 50:
+                df = df.dropna(subset=['종목명'])
+                # 필요한 컬럼만 추출 및 정리
+                res_df = df[['종목명', '현재가', '등락률', '거래량']].head(10).reset_index(drop=True)
+                # 등락률 등에 붙은 불필요한 문자 제거
+                res_df['등락률'] = res_df['등락률'].astype(str).str.replace('상한', '').str.replace('하한', '').str.strip()
+                return res_df
+    except Exception as e:
+        return None
+    return None
 
+# 3. 화면 출력 부분 (이전 코드의 상단에 배치하세요)
+st.title("오씨의 주식 공부 📈")
+st.markdown("### 🔥 K-Market 실시간 거래량 TOP 10")
+
+with st.spinner("실시간 랭킹 정보를 가져오는 중..."):
+    quant_df = get_naver_quant()
 with col_info:
     st.info(f"🇰🇷 K-Market: 09:00 - 15:30 | 🇺🇸 U.S. Market: 22:30 - 05:00")
+
+if quant_df is not None:
+    # 표를 더 깔끔하게 보기 위해 st.table 대신 st.dataframe 사용
+    st.dataframe(
+        quant_df,
+        use_container_width=True,
+        hide_index=True
+    )
+else:
+    st.error("⚠️ 실시간 데이터를 불러올 수 없습니다. GitHub의 requirements.txt에 'lxml'이 포함되어 있는지 확인하거나 잠시 후 다시 시도해 주세요.")
+
+# 이후 기존의 섹터별 MONITOR_MAP 출력 코드를 이어 붙이시면 됩니다.
+
 
 # 3. 초광역 섹터 맵 (섹터별 10개 종목 구성)
 MONITOR_MAP = {
